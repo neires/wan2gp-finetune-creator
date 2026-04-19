@@ -11,3 +11,6 @@ Designed specifically for local offline workflows, it completely bypasses Gradio
 * **Auto-Naming:** Automatically extracts and applies the finetune name based on your selected base model.
 * **Live & Editable JSON Preview:** Watch your JSON build in real-time as you adjust parameters. The preview box is fully editable, allowing you to manually tweak keys and values before hitting save.
 * **Compact Single-Row UI:** Highly optimized, space-saving layout without unnecessary scrollbars or stretched input fields.
+* 
+
+<img width="1833" height="922" alt="finetune_creator" src="https://github.com/user-attachments/assets/4f3be54f-43f1-4744-9ac7-ad19208a418f" />
