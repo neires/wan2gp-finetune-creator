@@ -1,0 +1,9 @@
+{
+  "name": "Finetune Creator",
+  "author": "Neires",
+  "version": "1.0.0",
+  "description": "Create finetunes with minimal effort according to WanGP specifications.",
+  "date": "",
+  "wan2gp_version": "",
+  "uninstallable": true
+}
