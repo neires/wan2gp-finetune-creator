@@ -101,14 +101,19 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
         }
         json_res = res_mapping.get(res, "1280x720")
 
+        # Base JSON structure
         finetune_def = {
             "model": model_data, 
-            # Nutzt einen leeren String, falls kein Prompt eingegeben wurde
             "prompt": prompt_text.strip() if prompt_text else "", 
             "num_inference_steps": int(steps) if steps else 8, 
-            "video_length": int(length) if length else 241, 
             "resolution": json_res
         }
+
+        # Only add video_length if the architecture is NOT an image model
+        image_models = ["flux", "qwen", "z-image"]
+        if base_arch.lower() not in image_models:
+            finetune_def["video_length"] = int(length) if length else 241
+
         return finetune_def
 
     def update_preview(self, *args):
