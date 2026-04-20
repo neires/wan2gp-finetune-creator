@@ -9,7 +9,7 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
     def __init__(self):
         super().__init__()
         self.name, self.description = "Finetune Creator", "Create finetunes with minimal effort according to WanGP specifications."
-        self.version = "1.0.0"
+        self.version = "1.0.1"
         self._is_active = False
 
     def setup_ui(self):
@@ -59,13 +59,14 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
             return os.path.basename(clean_path)
 
     # --- Central JSON Builder Function ---
-    def build_json_dict(self, base_arch, name, m_choice, m_url, m_path, te_choice, te_url, te_path, prompt_text, steps, length, res):
+    def build_json_dict(self, base_arch, name, m_choice, m_url, m_path, m_url_2, m_path_2, te_choice, te_url, te_path, prompt_text, steps, length, res):
         display_name = name if name else "..."
 
         cleaned_m_path = self.clean_local_path(m_path) if m_path else ""
+        cleaned_m_path_2 = self.clean_local_path(m_path_2) if m_path_2 else ""
         cleaned_te_path = self.clean_local_path(te_path) if te_path else ""
 
-        # Multiline URL handling for Main Model
+        # Multiline URL handling for Main Model (High Noise)
         if m_choice == "URL" and m_url:
             urls = [u.strip() for u in m_url.split('\n') if u.strip()]
         else:
@@ -77,6 +78,16 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
             "description": f"Finetune generated via WanGP Finetune Creator",
             "URLs": urls
         }
+
+        # Handling for Wan 2.2 Secondary File (Low Noise)
+        if "wan2.2" in base_arch.lower():
+            if m_choice == "URL" and m_url_2:
+                urls2 = [u.strip() for u in m_url_2.split('\n') if u.strip()]
+            else:
+                urls2 = [cleaned_m_path_2] if cleaned_m_path_2 else []
+            
+            if urls2:
+                model_data["URLs2"] = urls2
 
         # Handling for empty preload_URLs when URL is selected
         if m_choice == "URL":
@@ -114,6 +125,13 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
         if base_arch.lower() not in image_models:
             finetune_def["video_length"] = int(length) if length else 241
 
+        # Add Wan2.2 specific parameters based on working finetune specifications
+        if "wan2.2" in base_arch.lower():
+            finetune_def["guidance_phases"] = 2
+            finetune_def["switch_threshold"] = 900
+            finetune_def["flow_shift"] = 5
+            finetune_def["multi_prompts_gen_type"] = 2
+
         return finetune_def
 
     def update_preview(self, *args):
@@ -122,26 +140,34 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
         return json.dumps(preview_dict, indent=4)
 
     # --- Auto-Name & Browse Functions ---
-    def handle_model_browse(self, base_arch, current_name, m_choice, m_url, m_path, te_choice, te_url, te_path, prompt_text, steps, length, res):
+    def handle_model_browse(self, base_arch, current_name, m_choice, m_url, m_path, m_url_2, m_path_2, te_choice, te_url, te_path, prompt_text, steps, length, res):
         path = self.open_windows_file_dialog()
         if not path:
             return gr.update(), gr.update(), gr.update()
         
         new_name = os.path.splitext(os.path.basename(path))[0]
-        preview_dict = self.build_json_dict(base_arch, new_name, m_choice, m_url, path, te_choice, te_url, te_path, prompt_text, steps, length, res)
+        preview_dict = self.build_json_dict(base_arch, new_name, m_choice, m_url, path, m_url_2, m_path_2, te_choice, te_url, te_path, prompt_text, steps, length, res)
         return path, new_name, json.dumps(preview_dict, indent=4)
 
-    def handle_te_browse(self, base_arch, current_name, m_choice, m_url, m_path, te_choice, te_url, te_path, prompt_text, steps, length, res):
+    def handle_model_2_browse(self, base_arch, current_name, m_choice, m_url, m_path, m_url_2, m_path_2, te_choice, te_url, te_path, prompt_text, steps, length, res):
+        path = self.open_windows_file_dialog()
+        if not path:
+            return gr.update(), gr.update()
+        
+        preview_dict = self.build_json_dict(base_arch, current_name, m_choice, m_url, m_path, m_url_2, path, te_choice, te_url, te_path, prompt_text, steps, length, res)
+        return path, json.dumps(preview_dict, indent=4)
+
+    def handle_te_browse(self, base_arch, current_name, m_choice, m_url, m_path, m_url_2, m_path_2, te_choice, te_url, te_path, prompt_text, steps, length, res):
         path = self.open_windows_file_dialog()
         if not path:
             return gr.update(), gr.update(), gr.update()
         
         if not current_name:
             new_name = os.path.splitext(os.path.basename(path))[0]
-            preview_dict = self.build_json_dict(base_arch, new_name, m_choice, m_url, m_path, te_choice, te_url, path, prompt_text, steps, length, res)
+            preview_dict = self.build_json_dict(base_arch, new_name, m_choice, m_url, m_path, m_url_2, m_path_2, te_choice, te_url, path, prompt_text, steps, length, res)
             return path, new_name, json.dumps(preview_dict, indent=4)
             
-        preview_dict = self.build_json_dict(base_arch, current_name, m_choice, m_url, m_path, te_choice, te_url, path, prompt_text, steps, length, res)
+        preview_dict = self.build_json_dict(base_arch, current_name, m_choice, m_url, m_path, m_url_2, m_path_2, te_choice, te_url, path, prompt_text, steps, length, res)
         return path, gr.update(), json.dumps(preview_dict, indent=4)
 
     def create_ui(self):
@@ -222,10 +248,18 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
                     with gr.Column(scale=1, min_width=340):
                         self.model_choice = gr.Radio(choices=["URL", "Local"], value="Local", label="Model Source")
                     with gr.Column(scale=5):
-                        self.model_url = gr.Textbox(label="Model URL", placeholder="https://huggingface.co/...\nhttps://huggingface.co/...", lines=2, max_lines=5, visible=False)
+                        # Primary Model (High Noise)
+                        self.model_url = gr.Textbox(label="Model URL (High Noise)", placeholder="https://huggingface.co/...\nhttps://huggingface.co/...", lines=2, max_lines=5, visible=False)
                         with gr.Row(visible=True) as self.model_local_row:
-                            self.model_local_path = gr.Textbox(label="Local Path", placeholder="C:\\path\\to\\model.gguf", scale=4)
+                            self.model_local_path = gr.Textbox(label="Local Path (High Noise)", placeholder="C:\\path\\to\\model_high.gguf", scale=4)
                             self.model_browse_btn = gr.Button("📂 Browse...", elem_classes="browse-btn", scale=1)
+                        
+                        # Secondary Model (Wan2.2 Low Noise - Hidden by default)
+                        with gr.Group(visible=False) as self.wan22_extra_group:
+                            self.model_url_2 = gr.Textbox(label="Model URL 2 (Low Noise)", placeholder="https://huggingface.co/...\nhttps://huggingface.co/...", lines=2, max_lines=5, visible=False)
+                            with gr.Row(visible=True) as self.model_local_row_2:
+                                self.model_local_path_2 = gr.Textbox(label="Local Path 2 (Low Noise)", placeholder="C:\\path\\to\\model_low.gguf", scale=4)
+                                self.model_browse_btn_2 = gr.Button("📂 Browse...", elem_classes="browse-btn", scale=1)
 
             # --- COMPACT Text Encoder Configuration ---
             with gr.Group():
@@ -252,12 +286,26 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
 
         # --- Event Listeners Setup ---
         
-        self.model_choice.change(fn=lambda c: (gr.update(visible=c=="URL"), gr.update(visible=c=="Local")), inputs=self.model_choice, outputs=[self.model_url, self.model_local_row])
+        # Show/Hide Wan2.2 secondary inputs based on architecture selection
+        self.base_arch.change(
+            fn=lambda arch: gr.update(visible="wan2.2" in arch.lower()),
+            inputs=self.base_arch,
+            outputs=self.wan22_extra_group
+        )
+
+        # Toggle URL/Local for BOTH primary and secondary models
+        self.model_choice.change(
+            fn=lambda c: (gr.update(visible=c=="URL"), gr.update(visible=c=="Local"), gr.update(visible=c=="URL"), gr.update(visible=c=="Local")), 
+            inputs=self.model_choice, 
+            outputs=[self.model_url, self.model_local_row, self.model_url_2, self.model_local_row_2]
+        )
+
         self.te_choice.change(fn=lambda c: (gr.update(visible=c=="URL"), gr.update(visible=c=="Local")), inputs=self.te_choice, outputs=[self.te_url, self.te_local_row])
         
         all_inputs = [
             self.base_arch, self.finetune_name, 
             self.model_choice, self.model_url, self.model_local_path, 
+            self.model_url_2, self.model_local_path_2,  # <--- NEU
             self.te_choice, self.te_url, self.te_local_path, 
             self.prompt_input, 
             self.steps, self.length, self.resolution
@@ -270,6 +318,11 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
             fn=self.handle_model_browse, 
             inputs=all_inputs, 
             outputs=[self.model_local_path, self.finetune_name, self.json_output]
+        )
+        self.model_browse_btn_2.click(
+            fn=self.handle_model_2_browse, 
+            inputs=all_inputs, 
+            outputs=[self.model_local_path_2, self.json_output]
         )
         self.te_browse_btn.click(
             fn=self.handle_te_browse, 
