@@ -9,8 +9,27 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
     def __init__(self):
         super().__init__()
         self.name, self.description = "Finetune Creator", "Create finetunes with minimal effort according to WanGP specifications."
-        self.version = "1.0.1"
+        self.version = "1.0.2"
         self._is_active = False
+
+        # --- ARCHITECTURE MAPPING ---
+        # Display Name (UI) -> Actual JSON Name (Backend)
+        self.arch_mapping = {
+            "ltx2_22B": "ltx2_22B",
+            "ltx-2-19b": "ltx-2-19b",
+            "hunyuan_video": "hunyuan_video",
+            "HunyuanVideo1.5": "HunyuanVideo1.5",
+            "flux": "flux",
+            "qwen": "qwen",
+            "Z-Image": "Z-Image",
+            "Wan 2.1 - t2v-1-3B": "t2v-1-3B",
+            "Wan 2.1 - t2v-14B": "t2v-14B",
+            "Wan 2.1 - i2v-14B": "i2v-14B",
+            "Wan 2.2 - t2v_2_2": "t2v_2_2",
+            "Wan 2.2 - i2v_2_2": "i2v_2_2",
+            "Wan 2.2 - ti2v_2_2": "ti2v_2_2",
+            "Wan 2.2 - vace_14B_2_2": "vace_14B_2_2"
+        }
 
     def setup_ui(self):
         self.add_tab(
@@ -59,8 +78,11 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
             return os.path.basename(clean_path)
 
     # --- Central JSON Builder Function ---
-    def build_json_dict(self, base_arch, name, m_choice, m_url, m_path, m_url_2, m_path_2, te_choice, te_url, te_path, prompt_text, steps, length, res):
+    def build_json_dict(self, ui_base_arch, name, m_choice, m_url, m_path, m_url_2, m_path_2, te_choice, te_url, te_path, prompt_text, steps, length, res):
         display_name = name if name else "..."
+
+        # Get the actual architecture string for the JSON
+        real_base_arch = self.arch_mapping.get(ui_base_arch, ui_base_arch)
 
         cleaned_m_path = self.clean_local_path(m_path) if m_path else ""
         cleaned_m_path_2 = self.clean_local_path(m_path_2) if m_path_2 else ""
@@ -74,13 +96,13 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
         
         model_data = {
             "name": display_name,
-            "architecture": base_arch,
+            "architecture": real_base_arch,
             "description": f"Finetune generated via WanGP Finetune Creator",
             "URLs": urls
         }
 
-        # Handling for Wan 2.2 Secondary File (Low Noise)
-        if "wan2.2" in base_arch.lower():
+        # Handling for Wan 2.2 Secondary File (Low Noise) - Checked via "_2_2" in the architecture name
+        if "_2_2" in real_base_arch.lower():
             if m_choice == "URL" and m_url_2:
                 urls2 = [u.strip() for u in m_url_2.split('\n') if u.strip()]
             else:
@@ -99,8 +121,8 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
         elif te_choice == "Local" and cleaned_te_path:
             model_data["text_encoder_URLs"] = [cleaned_te_path]
 
-        if "ltx2" in base_arch.lower() or "ltx-2" in base_arch.lower():
-            model_data["preload_URLs"] = base_arch
+        if "ltx2" in real_base_arch.lower() or "ltx-2" in real_base_arch.lower():
+            model_data["preload_URLs"] = real_base_arch
             model_data["ltx2_pipeline"] = "distilled"
 
         # Mapping for Resolution
@@ -122,11 +144,11 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
 
         # Only add video_length if the architecture is NOT an image model
         image_models = ["flux", "qwen", "z-image"]
-        if base_arch.lower() not in image_models:
+        if real_base_arch.lower() not in image_models:
             finetune_def["video_length"] = int(length) if length else 241
 
         # Add Wan2.2 specific parameters based on working finetune specifications
-        if "wan2.2" in base_arch.lower():
+        if "_2_2" in real_base_arch.lower():
             finetune_def["guidance_phases"] = 2
             finetune_def["switch_threshold"] = 900
             finetune_def["flow_shift"] = 5
@@ -225,7 +247,7 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
             with gr.Row():
                 self.finetune_name = gr.Textbox(label="Finetune Name", placeholder="e.g. LTX-2 2.3 Distilled 22B heretic", scale=3)
                 self.base_arch = gr.Dropdown(
-                    choices=["ltx2_22B", "ltx-2-19b", "hunyuan_video", "HunyuanVideo1.5", "flux", "wan2.1", "wan2.2", "qwen", "Z-Image"], 
+                    choices=list(self.arch_mapping.keys()), # Lädt die formatierten Namen aus dem Mapping
                     label="Base Architecture", 
                     value="ltx2_22B",
                     scale=2
@@ -254,7 +276,7 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
                             self.model_local_path = gr.Textbox(label="Local Path (High Noise)", placeholder="C:\\path\\to\\model_high.gguf", scale=4)
                             self.model_browse_btn = gr.Button("📂 Browse...", elem_classes="browse-btn", scale=1)
                         
-                        # Secondary Model (Wan2.2 Low Noise - Hidden by default)
+                        # Secondary Model (Wan2.2 Low Noise - Hidden by default, triggers on "Wan 2.2")
                         with gr.Group(visible=False) as self.wan22_extra_group:
                             self.model_url_2 = gr.Textbox(label="Model URL 2 (Low Noise)", placeholder="https://huggingface.co/...\nhttps://huggingface.co/...", lines=2, max_lines=5, visible=False)
                             with gr.Row(visible=True) as self.model_local_row_2:
@@ -286,9 +308,9 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
 
         # --- Event Listeners Setup ---
         
-        # Show/Hide Wan2.2 secondary inputs based on architecture selection
+        # Show/Hide Wan2.2 secondary inputs based on "Wan 2.2" in architecture selection
         self.base_arch.change(
-            fn=lambda arch: gr.update(visible="wan2.2" in arch.lower()),
+            fn=lambda arch: gr.update(visible="Wan 2.2" in arch),
             inputs=self.base_arch,
             outputs=self.wan22_extra_group
         )
@@ -305,7 +327,7 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
         all_inputs = [
             self.base_arch, self.finetune_name, 
             self.model_choice, self.model_url, self.model_local_path, 
-            self.model_url_2, self.model_local_path_2,  # <--- NEU
+            self.model_url_2, self.model_local_path_2,
             self.te_choice, self.te_url, self.te_local_path, 
             self.prompt_input, 
             self.steps, self.length, self.resolution
