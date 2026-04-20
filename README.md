@@ -1,4 +1,4 @@
-# 🛠️ Wan2GP Finetune Creator Plugin
+# 🛠️ WanGP Finetune Creator Plugin
 
 Create finetunes with minimal effort according to WanGP specifications.
 
