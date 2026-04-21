@@ -218,12 +218,11 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
         .inline-field label {
             display: flex !important;
             flex-direction: row !important;
-            align-items: flex-start !important;
+            align-items: center !important;
         }
         .inline-field label > span {
             margin-bottom: 0 !important;
             margin-right: 15px !important;
-            margin-top: 6px !important;
             white-space: nowrap !important;
             flex-shrink: 0 !important;
         }
@@ -247,7 +246,7 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
             with gr.Row():
                 self.finetune_name = gr.Textbox(label="Finetune Name", placeholder="e.g. LTX-2 2.3 Distilled 22B heretic", scale=3)
                 self.base_arch = gr.Dropdown(
-                    choices=list(self.arch_mapping.keys()), # Lädt die formatierten Namen aus dem Mapping
+                    choices=list(self.arch_mapping.keys()), 
                     label="Base Architecture", 
                     value="ltx2_22B",
                     scale=2
@@ -298,10 +297,10 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
             # --- PROMPT CONFIGURATION (Inline CSS applied, Value removed) ---
             self.prompt_input = gr.Textbox(label="Prompt", placeholder="Enter your prompt here...\nAnd on the next line...", lines=2, max_lines=10, elem_classes="inline-field")
 
-            self.generate_btn = gr.Button("💾 Save JSON File", variant="primary")
-            
-            # --- STATUS DISPLAY (Inline CSS applied) ---
-            self.status_text = gr.Textbox(label="Status", interactive=False, elem_classes="inline-field")
+            # --- SAVE BUTTON & STATUS DISPLAY (Single Row) ---
+            with gr.Row():
+                self.status_text = gr.Textbox(label="Status", interactive=False, elem_classes="inline-field", scale=4)
+                self.generate_btn = gr.Button("💾 Save JSON File", variant="primary", scale=1)
             
             # --- PREVIEW (EDITABLE) ---
             self.json_output = gr.Code(language="json", label="Live JSON Preview (Editable before saving)", interactive=True, elem_classes="code-preview-box")
