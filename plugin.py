@@ -9,7 +9,7 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
     def __init__(self):
         super().__init__()
         self.name, self.description = "Finetune Creator", "Create finetunes with minimal effort according to WanGP specifications."
-        self.version = "1.0.2"
+        self.version = "1.0.3"
         self._is_active = False
 
         # --- ARCHITECTURE MAPPING ---
@@ -32,6 +32,9 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
         }
 
     def setup_ui(self):
+        # NEU: Wir fordern die globale Funktion zum Neuladen der Modelle an
+        self.request_global("refresh_model_defs")
+        
         self.add_tab(
             tab_id="finetune_creator",
             label="Finetune Creator",
@@ -368,6 +371,11 @@ class FinetuneMakerPlugin(WAN2GPPlugin):
             parsed_data = json.loads(current_json_string)
             with open(save_path, "w", encoding="utf-8") as f:
                 json.dump(parsed_data, f, indent=4)
+                
+            # NEU: Wir triggern den Refresh in WanGP!
+            if hasattr(self, "refresh_model_defs"):
+                self.refresh_model_defs()
+                
             return f"✅ Saved successfully to: {save_path}"
         except json.JSONDecodeError as e:
             return f"❌ JSON Error: Invalid format in your manual edits! Check for missing commas or quotes. ({str(e)})"
